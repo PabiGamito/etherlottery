@@ -1,34 +1,34 @@
 pragma solidity ^0.4.2;
 
-contract LotteryTicket {
-    function transfer(address receiver, uint amount){
-        
-    }
-}
+// TODO: Invite chain to incite people to invite people to get more money to bet
 
 contract Lottery {
     // Address to send fees to
-    address feeAddress;
+    address minter;
+    uint balance;
     
     // Defines needed variables
     uint public ticketPrice;
     uint public roundDuration; // saved in seconds
     uint public nextWinnerPickedTime;
     
-    // Initialized the prizePool to 0 on contract creation
-    uint public prizePool = 0;
+    // Initialized the ticketsInPool 0 on contract creation
+    uint public ticketsInPool = 0;
+    uint numberOfParticipants = 0;
     
-    // Creates an array that holds the amounts of tickets each address has
-    mapping (address => uint256) public totalTicketsOf;
-    // Will generate a public even on the blockain to notify
+    // Creates a strct that holds participants' information
+    struct Participant {
+        address participantAddress;
+        uint numberOfTicketsOwned;
+    }
+    mapping (uint => Participant) participants;
     
     // Called upon creation of contract
     function Lottery (
-        address addressToSendFeesTo,
         uint etherCostOfEachTicket, // in ethers
         uint lotteryRoundDurationInSeconds // in seconds
     ) {
-        feeAddress = addressToSendFeesTo;
+        minter = msg.sender;
         ticketPrice = etherCostOfEachTicket * 1 ether;
         roundDuration = lotteryRoundDurationInSeconds * 1 seconds;
         nextWinnerPickedTime = now + roundDuration;
@@ -36,30 +36,56 @@ contract Lottery {
     
     // This function without name is called anytime some sends funds to the contract
     function () {
-        uint ticketsBought = msg.value*ticketPrice; // will round down = max tickets deposited amount can buy
-        totalTicketsOf[msg.sender] = ticketsBought;
-        prizePool += ticketsBought*ticketPrice;
-        // Send back or keep extra ethers?
+        if(msg.value >= ticketPrice) {
+            uint ticketsBought = msg.value*ticketPrice; // will round down = max tickets deposited amount can buy
+            participants[numberOfParticipants] = Participant(msg.sender, ticketsBought);
+            ticketsInPool += ticketsBought;
+            numberOfParticipants += 1;
+            // Send back or keep extra ethers? Keep all or send back a part of extra?   
+        }
     }
     
     modifier afterPickWinnerTime() { 
         if (now >= nextWinnerPickedTime) _; 
     }
     
-    function randomNumberBetween(uint min, uint max) returns(uint randomNumber) {
-        // Blockhash can only be safely used for a random number if the total amount of value resting on the quality of that randomness is lower than what a miner earns by mining a single block
+    function randomNumber(uint max) returns(uint randomNumber) {
+        // Figure out a way to make this random number non-exploitable by miners
+        uint pseudoRand = uint256(block.blockhash(block.number))**uint256(block.blockhash(block.number-1));
+        return pseudoRand%(max+1); // will return a number between 0 and max
     }
     
-    function pickRandomWinner() afterPickWinnerTime {
-        
+    function pickRandomWinner() afterPickWinnerTime private {
+        // first ticket will have id = 0 so last ticket with have id = ticketsInPool-1 so we get a max randomNumber = ticketsInPool-1
+        uint winnerNumber = randomNumber(ticketsInPool-1);
+        uint tickerNumberIndex = 0;
+        for(uint i=0; i < numberOfParticipants; i++) {
+            // by default tickerNumberIndex < winnerNumber is true so no need to check it to save resources otherwise previous participant would have won
+            if(winnerNumber < tickerNumberIndex+participants[i].numberOfTicketsOwned) {
+                // Winner found
+                payWinner(participants[i].participantAddress);
+            }
+        }
     }
     
-    function payWinner(uint winnerAddress) {
-        
+    function payWinner(address winnerAddress) private {
+        if(!winnerAddress.send(ticketsInPool * ticketPrice)){
+            // failed to pay fees
+        }
+        // decide fix it should withdrawl extra fees or just use them to pay people to participate in the lottery
     }
     
-    function payFees(){
-        
+    function withdrawFees(uint totalFees) {
+        if(minter == msg.sender && totalFees <= balance) {
+            if(!minter.send(totalFees)){
+                // failed to pay fees
+            }   
+        }
+    }
+    
+    function resetForNextRound() private {
+        ticketsInPool = 0;
+        numberOfParticipants = 0;
     }
     
 }
