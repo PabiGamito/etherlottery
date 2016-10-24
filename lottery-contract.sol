@@ -51,7 +51,7 @@ contract Lottery {
     
     function randomNumber(uint max) returns(uint randomNumber) {
         // Figure out a way to make this random number non-exploitable by miners
-        uint pseudoRand = uint256(block.blockhash(block.number))**uint256(block.blockhash(block.number-1));
+        uint pseudoRand = uint256(block.blockhash(block.number-5))**uint256(block.blockhash(block.number-2));
         return pseudoRand%(max+1); // will return a number between 0 and max
     }
     
